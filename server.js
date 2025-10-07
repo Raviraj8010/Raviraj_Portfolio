@@ -1,6 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const path = require("path");
 require("dotenv").config();
 
@@ -39,41 +39,31 @@ const contactSchema = new mongoose.Schema({
 });
 const Contact = mongoose.model("Contact", contactSchema);
 
-// ✅ Nodemailer Transporter with Resend
-const transporter = nodemailer.createTransport({
-  host: "smtp.resend.com",
-  port: 587,
-  auth: {
-    user: "resend", // Resend requires this fixed username
-    pass: process.env.RESEND_API_KEY, // Must be set in Render Env
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// ✅ Route: Save + Send Email
 app.post("/contact", async (req, res) => {
   try {
-    // Save data in MongoDB
+    // ✅ Save data in MongoDB
     const newContact = new Contact(req.body);
     await newContact.save();
 
-    // Send mail via Resend
-    const mailOptions = {
-      from: "onboarding@resend.dev", // Must be verified in Resend
-      to: "ravirajskadam2004@gmail.com", // Your email
+    // ✅ Send mail via Resend API
+    await resend.emails.send({
+      from: "onboarding@resend.dev",  // Must be verified in your Resend account
+      to: "ravirajskadam2004@gmail.com", // Your destination email
       subject: `📩 New Message: ${req.body.subject}`,
-      text: `
-        Name: ${req.body.name}
-        Email: ${req.body.email}
-        Subject: ${req.body.subject}
-        Message: ${req.body.message}
+      html: `
+        <h3>New Contact Form Submission</h3>
+        <p><strong>Name:</strong> ${req.body.name}</p>
+        <p><strong>Email:</strong> ${req.body.email}</p>
+        <p><strong>Subject:</strong> ${req.body.subject}</p>
+        <p><strong>Message:</strong><br>${req.body.message}</p>
       `,
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
 
     res.send("Message sent successfully!");
   } catch (err) {
-    console.error("❌ Error:", err);
+    console.error("❌ Error sending email:", err);
     res.status(500).send("Failed to send message.");
   }
 });
